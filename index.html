@@ -1016,6 +1016,22 @@
                             <span>Started:</span>
                             <input type="date" id="nad-start-date-input" style="padding: 4px 8px; border-radius: 5px; border: none; font-size: 11px; background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.8);" onchange="saveNadStartDate()">
                         </div>
+                        <!-- Site Rotation -->
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2);">
+                            <div style="opacity: 0.8; font-size: 12px; margin-bottom: 10px;">📍 SITE ROTATION</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 10px; text-align: center;">
+                                    <div style="opacity: 0.7; font-size: 10px; margin-bottom: 5px;">LAST USED</div>
+                                    <div id="nad-last-used-date" style="font-size: 0.9em; font-weight: 600;">-</div>
+                                    <div id="nad-last-used-site" style="font-size: 1.1em; font-weight: 700; margin-top: 5px;">-</div>
+                                </div>
+                                <div style="background: rgba(255,255,255,0.2); padding: 12px; border-radius: 10px; text-align: center;">
+                                    <div style="opacity: 0.7; font-size: 10px; margin-bottom: 5px;">USE TODAY</div>
+                                    <div id="nad-use-today-date" style="font-size: 0.9em; font-weight: 600;">-</div>
+                                    <div id="nad-use-today-site" style="font-size: 1.1em; font-weight: 700; margin-top: 5px; color: #ffeb3b;">-</div>
+                                </div>
+                            </div>
+                        </div>
                         <!-- NAD+ Energy Chart -->
                         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2);">
                             <div style="opacity: 0.8; font-size: 12px; margin-bottom: 10px;">⚡ ENERGY LEVELS (Since First Shot)</div>
@@ -1963,10 +1979,10 @@
             renderNadMiniChart();
 
             // Set today's date display
-            document.getElementById('today-date').textContent = formatDate(new Date());
+            refreshTodayDisplay();
 
-            // Set default dates for inputs
-            const today = new Date().toISOString().split('T')[0];
+            // Set default dates for inputs using local time (not UTC)
+            const today = formatDateKey(new Date());
             document.getElementById('withdrawal-date').value = today;
             document.getElementById('lab-date').value = today;
             document.getElementById('taper-start-date').value = today;
@@ -1975,6 +1991,35 @@
             const savedTab = localStorage.getItem('wellnessTracker_currentTab');
             if (savedTab) {
                 switchTab(savedTab);
+            }
+
+            // Refresh date display when app becomes visible (e.g., after sleep or switching tabs)
+            document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'visible') {
+                    refreshTodayDisplay();
+                }
+            });
+
+            // Also refresh on window focus (for PWA)
+            window.addEventListener('focus', refreshTodayDisplay);
+
+            // Check for date change every minute
+            setInterval(refreshTodayDisplay, 60000);
+        }
+
+        // Refresh today's date display and related UI
+        let lastDisplayedDate = null;
+        function refreshTodayDisplay() {
+            const currentDate = formatDateKey(new Date());
+
+            // Only refresh if date actually changed
+            if (lastDisplayedDate !== currentDate) {
+                lastDisplayedDate = currentDate;
+                document.getElementById('today-date').textContent = formatDate(new Date());
+                renderTodayMeds();
+                renderCalendar();
+                updateShotDashboard();
+                console.log('Date refreshed to:', currentDate);
             }
         }
 
@@ -3067,6 +3112,15 @@
                 const nadSite = nadLog && nadLog.injectionSites && nadLog.injectionSites.nad;
                 document.getElementById('nad-last-site').textContent = nadSite ? formatSiteName(nadSite) : '';
 
+                // Update Site Rotation section
+                document.getElementById('nad-last-used-date').textContent = formatDate(lastDate);
+                document.getElementById('nad-last-used-site').textContent = nadSite ? formatSiteName(nadSite) : 'Not recorded';
+
+                // Today's date and recommended site (alternate from last)
+                document.getElementById('nad-use-today-date').textContent = formatDate(today);
+                const recommendedSite = nadSite === 'left' ? 'Right Side' : nadSite === 'right' ? 'Left Side' : 'Left Side';
+                document.getElementById('nad-use-today-site').textContent = recommendedSite;
+
                 // NAD+ is weekly (every Monday), calculate next due
                 const nextDue = new Date(lastDate);
                 nextDue.setDate(nextDue.getDate() + 7);
@@ -3088,6 +3142,12 @@
                 document.getElementById('nad-last-shot').textContent = 'Not recorded';
                 document.getElementById('nad-last-site').textContent = '';
                 document.getElementById('nad-next-due').textContent = 'Mark your first shot!';
+
+                // Site Rotation defaults when no history
+                document.getElementById('nad-last-used-date').textContent = '-';
+                document.getElementById('nad-last-used-site').textContent = 'No history';
+                document.getElementById('nad-use-today-date').textContent = formatDate(today);
+                document.getElementById('nad-use-today-site').textContent = 'Left Side';
             }
         }
 
